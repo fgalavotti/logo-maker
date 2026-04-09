@@ -3,9 +3,10 @@ namespace LogoMaker.Entities;
 
 public class Utente
 {
-    public string Username{ get; set; }
-    public string Password{ get; set; }
-    public string Gender{ get; set; }
-    public string Role{ get; set; }
+    [Key]
+    public required string Username{ get; set; }
+    public required string Password{ get; set; }
+    public required string Gender{ get; set; }
+    public required string Role{ get; set; }
     public List<Società>? SocietàUtente{ get; set; }
 }

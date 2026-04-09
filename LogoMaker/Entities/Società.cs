@@ -3,8 +3,9 @@ namespace LogoMaker.Entities;
 
 public class Società
 {
-    public string RagioneSociale{ get; set; }
-    public string PartitaIVA{ get; set; }
-    public string Logo{ get; set; }
+    public required string RagioneSociale{ get; set; }
+    [Key]
+    public required string PartitaIVA{ get; set; }
+    public required string Logo{ get; set; }
     public Utente? User{ get; set; }
 }
