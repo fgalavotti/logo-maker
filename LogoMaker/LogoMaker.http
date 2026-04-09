@@ -1,0 +1,6 @@
+@LogoMaker_HostAddress = http://localhost:5064
+
+GET {{LogoMaker_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
