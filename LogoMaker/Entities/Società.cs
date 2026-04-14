@@ -9,7 +9,6 @@ public class Società
     [Key]
     [Column("PartitaIVA")]
     [Required]
-    [RegularExpression(@"^\d{11}$", ErrorMessage = "La Partita IVA deve contenere esattamente 11 cifre.")]
     public required string PartitaIVA { get; set; }
 
     [Column("RagioneSociale")]

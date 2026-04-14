@@ -9,6 +9,7 @@ public class Utente
     [Key]
     [Column("Username")]
     [Required]
+    [RegularExpression(@"^[A-Z][a-z]+$")]
     public required string Username{ get; set; }
 
     [Column("Password")]

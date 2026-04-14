@@ -4,11 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using LogoMaker.Controllers;
 
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+
+var connectionString = builder.Configuration.GetConnectionString("LMContext");
+builder.Services.AddDbContext<LMContext>(opt => opt.UseSqlServer(connectionString));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
@@ -29,29 +33,6 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
-
-//prima api per inserire un nuovo utente nel database
-app.MapPost("/userinsert/{user}", (string nam, [FromQuery] string pas, [FromQuery] string gen, [FromQuery] string rol) =>
-{
-    string connstr = """Data Source=PC-STAGER\SQLEXPRESS2025; Persist Security Info=True; User ID = sa; Password = 1111; DataBase = TESTDBGLV; Pooling = False; MultipleActiveResultSets = False; Encrypt = False; TrustServerCertificate = True; Application Name = "SQL Server Management Studio"; Command Timeout = 0""";
-    using var ctx = new LMContext(connstr);
-
-    var nuovoutente = new Utente
-    {
-        Username = nam,
-        Password = pas,
-        Gender = gen,
-        Role = rol
-    };
-    ctx.Utenti.Add(nuovoutente);
-    ctx.SaveChanges();
-});
-
-app.MapGet("/getallusers", () => "Hello World");
-app.MapGet("/getmycompanies", () => "Hello World");
-app.MapPost("/createuser", () => "Hello World");
-app.MapPost("/createcompany", () => "Hello World");
-
 
 app.Run();
 
