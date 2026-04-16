@@ -1,9 +1,10 @@
 ﻿using LogoMaker.DataAccess;
-using LogoMaker.Entities;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Data.SqlClient;
 using LogoMaker.DTO;
+using LogoMaker.Entities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace LogoMaker.Controllers;
 
@@ -19,6 +20,7 @@ public class UserController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "ADMINISTRATOR")]
     public async Task<ActionResult<List<Utente>>> GetUsers()
     {
         var users= await _context.Utenti.ToListAsync();
@@ -26,17 +28,26 @@ public class UserController : ControllerBase
     }
 
     [HttpGet("{Username}")]
+    [Authorize]
     public async Task<ActionResult<Utente>> GetUser(string Username)
     {
-        Utente? user = await _context.Utenti.FirstOrDefaultAsync(u => u.Username == Username);
+        Utente? user = await _context.Utenti.Include(u => u.SocietàUtente).FirstOrDefaultAsync(u => u.Username == Username);
         if(user is null)
         {
             return NotFound();
+        }
+        if (User.IsInRole("USER"))
+        {
+            if (User.Identity?.Name != user.Username)
+            {
+                return NotFound("Non è possibile visualizzare i dati di un altro utente");
+            }
         }
         return Ok(user);
     }
 
     [HttpPost]
+    [Authorize(Roles = "ADMINISTRATOR")]
     public async Task<ActionResult> UserInsert([FromBody] CreateUserDTO userDTO)
     {
         if (!ModelState.IsValid)
@@ -67,8 +78,21 @@ public class UserController : ControllerBase
     }
 
     [HttpPatch("{Username}")]
+    [Authorize]
     public async Task<ActionResult> UserEdit(string Username, [FromQuery] string? newnam, [FromQuery] string? newpas, [FromQuery] string? newgen, [FromQuery] string? newrol)
     {
+        if (User.IsInRole("USER"))
+        {
+            if (User.Identity?.Name != Username)
+            {
+                return BadRequest("Non è possibile modificare un altro utente");
+            }
+            if(newrol != "USER")
+            {
+                return BadRequest("Non è possibile modificare il proprio ruolo");
+            }
+        }
+
         var updateduser = await _context.Utenti.FirstOrDefaultAsync(u => u.Username == Username);
         if (updateduser == null)
             return NotFound();
@@ -85,12 +109,21 @@ public class UserController : ControllerBase
     }
 
     [HttpDelete("{Username}")]
+    [Authorize]
     public async Task<ActionResult> DeleteUser(string Username)
     {
         Utente? user = await _context.Utenti.FindAsync(Username);
         if (user is null)
         {
             return NotFound("Utente non trovato");
+        }
+
+        if (User.IsInRole("USER"))
+        {
+            if(User.Identity?.Name != user.Username)
+            {
+                return NotFound("Non è possibile eliminare un altro utente");
+            }
         }
 
         _context.Utenti.Remove(user);

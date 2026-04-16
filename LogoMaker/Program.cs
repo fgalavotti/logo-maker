@@ -1,10 +1,15 @@
+using LogoMaker.Controllers;
 using LogoMaker.DataAccess;
 using LogoMaker.Entities;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using System.Globalization;
-using LogoMaker.Controllers;
+using System.Text;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +22,27 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHttpClient();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
+            )
+        };
+    });
+
 
 var app = builder.Build();
 
@@ -28,6 +54,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
@@ -36,68 +65,3 @@ app.MapControllers();
 
 app.Run();
 
-
-/*
-
-try //test funzionamento connessione database
-{
-    string connectionString = """Data Source=PC-STAGER\SQLEXPRESS2025; Persist Security Info=True; User ID = sa; Password = 1111; DataBase = TESTDBGLV; Pooling = False; MultipleActiveResultSets = False; Encrypt = False; TrustServerCertificate = True; Application Name = "SQL Server Management Studio"; Command Timeout = 0""";
-    using SqlConnection conn = new(connectionString);
-    conn.Open();
-    string query = "SELECT * FROM usertable";
-    SqlCommand cmd = new(query, conn);
-    SqlDataReader reader = cmd.ExecuteReader();
-    while (reader.Read())
-    {
-        var user = reader.IsDBNull(0) ? null : reader.GetString(0);
-        var passw = reader.IsDBNull(1) ? null : reader.GetString(1);
-        var gen = reader.IsDBNull(2) ? null : reader.GetString(2);
-        var ruo = reader.IsDBNull(3) ? null : reader.GetString(3);
-        Console.WriteLine($"{user}, {passw}, {gen}, {ruo}");
-    }
-    reader.Close();
-    query = "SELECT * FROM companytable";
-    cmd = new(query, conn);
-    reader = cmd.ExecuteReader();
-    while (reader.Read())
-    {
-        var par = reader.GetString(0);
-        var rag = reader.GetString(1);
-        var log = reader.GetString(2);
-        var ut = reader.IsDBNull(3) ? null : reader.GetString(3);
-        Console.WriteLine($"{par}, {rag}, {log}, {ut}");
-    }
-}
-catch(Exception e)
-{
-    Console.WriteLine("ECCEZIONE");
-    Console.WriteLine(e.Message);
-}
-
-//test funzionamento LMContext
-
-string connstr = """Data Source=PC-STAGER\SQLEXPRESS2025; Persist Security Info=True; User ID = sa; Password = 1111; DataBase = TESTDBGLV; Pooling = False; MultipleActiveResultSets = False; Encrypt = False; TrustServerCertificate = True; Application Name = "SQL Server Management Studio"; Command Timeout = 0""";
-using var ctx = new LMContext(connstr);
-
-var nuovasoc = new Società
-{
-     PartitaIVA = "10101010101",
-     RagioneSociale = "nomesoc",
-     Logo = "log"
-};
-ctx.Società.Add(nuovasoc);
-ctx.SaveChanges();
-
-/*
-foreach (var user in ctx.Utenti.Include(u => u.SocietàUtente))
-{
-    Console.WriteLine(user.Username);
-    if(user.SocietàUtente != null)
-    {
-        foreach(var soc in user.SocietàUtente)
-        {
-            Console.WriteLine("XXXXXXX");
-            Console.WriteLine(soc.PartitaIVA);
-        }
-    }
-}*/

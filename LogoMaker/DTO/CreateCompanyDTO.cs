@@ -12,9 +12,8 @@ public class CreateCompanyDTO
     [Required(ErrorMessage = "Name is required")]
     [DefaultValue("")]
     public string RagioneSociale { get; set; } = string.Empty;
-    [Required(ErrorMessage = "Logo is required")]
-    [DefaultValue("")]
-    public string Logo { get; set; } = string.Empty;
+    [DefaultValue("[]")]
+    public List<string> Logo { get; set; } = [];
     [RegularExpression("^[A-Za-z]+$", ErrorMessage = "Name must only contain letters")]
     [DefaultValue("")]
     public string UsernameUtente { get; set; } = string.Empty;
