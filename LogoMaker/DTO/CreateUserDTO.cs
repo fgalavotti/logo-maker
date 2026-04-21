@@ -1,5 +1,4 @@
-﻿
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace LogoMaker.DTO;
@@ -22,4 +21,6 @@ public class CreateUserDTO
     [RegularExpression("^(?i)(user|administrator)$", ErrorMessage = "Role must either be USER or ADMINISTRATOR")]
     [DefaultValue("USER")]
     public string Role { get; set; } = string.Empty;
+    [DefaultValue("[]")]
+    public List<CreateCompanyDTO>? SocietàUtente { get; set; } = [];
 }

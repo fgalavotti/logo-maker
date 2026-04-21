@@ -3,7 +3,6 @@ using LogoMaker.DTO;
 using LogoMaker.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace LogoMaker.Controllers;
@@ -19,19 +18,46 @@ public class UserController : ControllerBase
         _context = ctx;
     }
 
-    [HttpGet]
+    [HttpGet("getallusers")]
     [Authorize(Roles = "ADMINISTRATOR")]
-    public async Task<ActionResult<List<Utente>>> GetUsers()
+    public async Task<ActionResult<List<Utente>>> GetUsers([FromQuery] bool showcompanies=true)
     {
-        var users= await _context.Utenti.ToListAsync();
+        var users = await _context.Utenti.Select(u => new CreateUserDTO
+        {
+            Username = u.Username,
+            Password = u.Password,
+            Gender = u.Gender,
+            Role = u.Role,
+            SocietàUtente = showcompanies == true ? u.SocietàUtente.Select(s => new CreateCompanyDTO
+            {
+                PartitaIVA = s.PartitaIVA,
+                RagioneSociale = s.RagioneSociale,
+                UsernameUtente = s.UsernameUtente,
+                Logo = s.Logo
+            }).ToList() ?? new List<CreateCompanyDTO>() : new List<CreateCompanyDTO>()
+
+        }).ToListAsync();
         return Ok(users);
     }
 
-    [HttpGet("{Username}")]
+    [HttpGet("getuser/{Username}")]
     [Authorize]
     public async Task<ActionResult<Utente>> GetUser(string Username)
     {
-        Utente? user = await _context.Utenti.Include(u => u.SocietàUtente).FirstOrDefaultAsync(u => u.Username == Username);
+        var user = await _context.Utenti.Where(u => u.Username == Username).Select(u=>new CreateUserDTO
+        {
+            Username = u.Username,
+            Password = u.Password,
+            Gender = u.Gender,
+            Role = u.Role,
+            SocietàUtente = u.SocietàUtente.Select(s => new CreateCompanyDTO
+            {
+                PartitaIVA = s.PartitaIVA,
+                RagioneSociale = s.RagioneSociale,
+                UsernameUtente = s.UsernameUtente,
+                Logo = s.Logo
+            }).ToList() ?? new List<CreateCompanyDTO>()
+        }).FirstOrDefaultAsync();
         if(user is null)
         {
             return NotFound();
@@ -46,7 +72,9 @@ public class UserController : ControllerBase
         return Ok(user);
     }
 
-    [HttpPost]
+    /* INUTILE DAL MOMENTO IN CUI ESISTE LA REGISTER PER INSERIRE UTENTI
+     * 
+    [HttpPost("insertuser")]
     [Authorize(Roles = "ADMINISTRATOR")]
     public async Task<ActionResult> UserInsert([FromBody] CreateUserDTO userDTO)
     {
@@ -76,8 +104,9 @@ public class UserController : ControllerBase
             return BadRequest("User already exists");
         }
     }
+    */
 
-    [HttpPatch("{Username}")]
+    [HttpPatch("edituser/{Username}")]
     [Authorize]
     public async Task<ActionResult> UserEdit(string Username, [FromQuery] string? newnam, [FromQuery] string? newpas, [FromQuery] string? newgen, [FromQuery] string? newrol)
     {
@@ -99,7 +128,7 @@ public class UserController : ControllerBase
         if (newnam != null)
             updateduser.Username = newnam;
         if (newpas != null)
-            updateduser.Password = newpas;
+            updateduser.Password = RegisterLoginController.HashPassword(newpas);
         if (newgen != null)
             updateduser.Gender = newgen;
         if (newrol != null)
@@ -108,7 +137,7 @@ public class UserController : ControllerBase
         return Ok();
     }
 
-    [HttpDelete("{Username}")]
+    [HttpDelete("deleteuser/{Username}")]
     [Authorize]
     public async Task<ActionResult> DeleteUser(string Username)
     {
@@ -128,6 +157,6 @@ public class UserController : ControllerBase
 
         _context.Utenti.Remove(user);
         await _context.SaveChangesAsync();
-        return NoContent();
+        return Ok("Utente eliminato correttamente");
     }
 }

@@ -19,19 +19,31 @@ public class CompanyController : ControllerBase
         _context = ctx;
     }
 
-    [HttpGet]
+    [HttpGet("getallcompanies")]
     [Authorize(Roles = "ADMINISTRATOR")]
     public async Task<ActionResult<List<Società>>> GetCompanies()
     {
-        var companies = await _context.Società.ToListAsync();
+        var companies = await _context.Società.Select(s=> new CreateCompanyDTO
+        {
+            PartitaIVA = s.PartitaIVA,
+            RagioneSociale = s.RagioneSociale,
+            Logo = s.Logo,
+            UsernameUtente = s.UsernameUtente
+        }).ToListAsync();
         return Ok(companies);
     }
 
-    [HttpGet("{PartitaIva}")]
+    [HttpGet("getcompany/{PartitaIva}")]
     [Authorize]
     public async Task<ActionResult<Utente>> GetCompany(string PartitaIva)
     {
-        Società? società = await _context.Società.FirstOrDefaultAsync(s => s.PartitaIVA == PartitaIva);
+        var società = await _context.Società.Where(s => s.PartitaIVA == PartitaIva).Select(s => new CreateCompanyDTO
+        {
+            PartitaIVA = s.PartitaIVA,
+            RagioneSociale = s.RagioneSociale,
+            UsernameUtente = s.UsernameUtente,
+            Logo = s.Logo
+        }).FirstOrDefaultAsync();
         if (società is null)
         {
             return NotFound();
@@ -46,8 +58,8 @@ public class CompanyController : ControllerBase
         return Ok(società);
     }
 
-    [HttpPost]
-    //[Authorize]
+    [HttpPost("insertcompany")]
+    [Authorize]
     public async Task<ActionResult> CompanyInsert([FromBody] CreateCompanyDTO companyDTO)
     {
         if (!ModelState.IsValid)
@@ -76,7 +88,7 @@ public class CompanyController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
-            return Ok(societa);
+            return Ok("Società inserita correttamente");
         }
         catch (DbUpdateException ex) when (ex.InnerException is SqlException SqlException && SqlException.Number == 2627)
         {
@@ -84,7 +96,7 @@ public class CompanyController : ControllerBase
         }
     }
 
-    [HttpPatch("{societa}")]
+    [HttpPatch("editcompany/{societa}")]
     [Authorize]
     public async Task<ActionResult> CompanyEdit(string societa, [FromQuery] string? newiva, [FromQuery] string? newrag, [FromQuery] List<string>? newlog, [FromQuery] string? newuse)
     {
@@ -116,7 +128,7 @@ public class CompanyController : ControllerBase
         return Ok();
     }
 
-    [HttpDelete("{PartitaIva}")]
+    [HttpDelete("deletecompany/{PartitaIva}")]
     [Authorize]
     public async Task<ActionResult> DeleteCompany(string PartitaIva)
     {
@@ -136,10 +148,9 @@ public class CompanyController : ControllerBase
         await _context.SaveChangesAsync();
         return NoContent();
     }
-
     
-    [HttpPost("{societa}")]
-    //[Authorize]
+    [HttpPost("generatelogo/{societa}")]
+    [Authorize]
     public async Task<ActionResult> GenerateLogo(string societa)
     {
 
@@ -148,11 +159,19 @@ public class CompanyController : ControllerBase
         if (company == null)
             return NotFound();
 
+        if (User.IsInRole("USER"))
+        {
+            if (User.Identity?.Name != company.UsernameUtente)
+            {
+                return NotFound("Non è possibile generare loghi per società di altri utenti");
+            }
+        }
+
         using HttpClient client = new HttpClient();
 
         var colors = await client
             .GetFromJsonAsync<List<string>>(
-                "https://aptitudetestapi.azurewebsites.net/api/HexColor/HexColorArray?length=5"
+                "https://aptitudetestapi.azurewebsites.net/api/HexColor/HexColorArray?length=100"
             );
 
         if (colors == null)
@@ -162,7 +181,13 @@ public class CompanyController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(company);
+        return Ok(new CreateCompanyDTO
+        {
+            PartitaIVA = company.PartitaIVA,
+            RagioneSociale = company.RagioneSociale,
+            Logo = company.Logo,
+            UsernameUtente = company.UsernameUtente
+        });
 
     }
 

@@ -3,22 +3,24 @@ using LogoMaker.DTO;
 using LogoMaker.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
-
 
 namespace LogoMaker.Controllers;
 
 [ApiController]
-[Route("api/registerlogin")]
+[Route("api")]
 public class RegisterLoginController : ControllerBase
 {
     private readonly LMContext _context;
     private readonly IConfiguration _config;
+    private const int SaltSize = 16;
+    private const int HashSize = 32;
+    private const int Iterations = 100_000;
 
     public RegisterLoginController(LMContext context, IConfiguration config)
     {
@@ -26,17 +28,17 @@ public class RegisterLoginController : ControllerBase
         _config = config;
     }
 
-
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDTO dto)
     {
         var user = await _context.Utenti
-            .FirstOrDefaultAsync(u =>
-                u.Username == dto.Username &&
-                u.Password == dto.Password);
+            .FirstOrDefaultAsync(u => u.Username == dto.Username);
 
         if (user == null)
-            return Unauthorized("Credenziali non valide");
+            return Unauthorized("Username non valido");
+
+        if (!VerifyPassword(user.Password, dto.Password))
+            return Unauthorized("Password non valida");
 
         var claims = new List<Claim>
         {
@@ -72,11 +74,11 @@ public class RegisterLoginController : ControllerBase
 
         if (await _context.Utenti.AnyAsync(u => u.Username == dto.Username))
             return Conflict("Username già esistente");
-
+        
         var user = new Utente
         {
             Username = dto.Username,
-            Password = dto.Password,
+            Password = HashPassword(dto.Password),
             Gender = dto.Gender,
             Role = "USER"
         };
@@ -85,6 +87,46 @@ public class RegisterLoginController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok("Registrazione completata");
+    }
+
+
+    public static string HashPassword(string password)
+    {
+        byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
+
+        byte[] hash = Rfc2898DeriveBytes.Pbkdf2(
+            password,
+            salt,
+            Iterations,
+            HashAlgorithmName.SHA256,
+            HashSize
+        );
+
+        byte[] combined = new byte[SaltSize + HashSize];
+        Buffer.BlockCopy(salt, 0, combined, 0, SaltSize);
+        Buffer.BlockCopy(hash, 0, combined, SaltSize, HashSize);
+
+        return Convert.ToBase64String(combined);
+    }
+
+    static bool VerifyPassword(string stored, string passwordInserita)
+    {
+        byte[] combinedBytes = Convert.FromBase64String(stored);
+        byte[] salt = new byte[SaltSize];
+        byte[] originalHash = new byte[HashSize];
+
+        Buffer.BlockCopy(combinedBytes, 0, salt, 0, SaltSize);
+        Buffer.BlockCopy(combinedBytes, SaltSize, originalHash, 0, HashSize);
+
+        byte[] newHash = Rfc2898DeriveBytes.Pbkdf2(
+            passwordInserita,
+            salt,
+            Iterations,
+            HashAlgorithmName.SHA256,
+            HashSize
+        );
+
+        return CryptographicOperations.FixedTimeEquals(newHash, originalHash);
     }
 
 }
