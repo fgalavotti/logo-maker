@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace LogoMaker.Controllers;
 
@@ -14,15 +15,28 @@ public class CompanyController : ControllerBase
 {
     private readonly LMContext _context;
 
+    private static readonly Semaphore _semaphore = new Semaphore(initialCount: 1, maximumCount: 1);
+
     public CompanyController(LMContext ctx)
     {
         _context = ctx;
     }
 
     [HttpGet("getallcompanies")]
-    [Authorize(Roles = "ADMINISTRATOR")]
+    [Authorize]
     public async Task<ActionResult<List<Società>>> GetCompanies()
     {
+        if (User.IsInRole("USER"))
+        {
+            var usercompanies = await _context.Società.Where(s => s.UsernameUtente == User.Identity.Name).Select(s => new CreateCompanyDTO
+            {
+                PartitaIVA = s.PartitaIVA,
+                RagioneSociale = s.RagioneSociale,
+                Logo = s.Logo,
+                UsernameUtente = s.UsernameUtente
+            }).ToListAsync();
+            return Ok(usercompanies);
+        }
         var companies = await _context.Società.Select(s=> new CreateCompanyDTO
         {
             PartitaIVA = s.PartitaIVA,
@@ -167,19 +181,22 @@ public class CompanyController : ControllerBase
             }
         }
 
-        using HttpClient client = new HttpClient();
+        _semaphore.WaitOne();
+        try
+        {
+            using HttpClient client = new HttpClient();
 
-        var colors = await client
-            .GetFromJsonAsync<List<string>>(
-                "https://aptitudetestapi.azurewebsites.net/api/HexColor/HexColorArray?length=100"
-            );
+            var colors = await client.GetFromJsonAsync<List<string>>("https://aptitudetestapi.azurewebsites.net/api/HexColor/HexColorArray?length=100");
 
-        if (colors == null)
-            return StatusCode(502, "Errore API esterna");
+            if (colors == null)
+                return StatusCode(502, "Errore API esterna");
 
-        company.Logo = colors;
+            company.Logo = colors;
+            await _context.SaveChangesAsync();
+        }
+        finally
+        {_semaphore.Release();}
 
-        await _context.SaveChangesAsync();
 
         return Ok(new CreateCompanyDTO
         {
